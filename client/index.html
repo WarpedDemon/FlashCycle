@@ -1,0 +1,361 @@
+<html>
+	<head>
+		<title>LightCycle IO</title>
+		<link rel="stylesheet" type="text/css" href="	client/css/lightcycle.css" />
+		<style>
+			canvas {
+				background-color: black;
+				border-radius: 4px;
+			}
+		</style>
+	</head>
+
+	<body>
+		<!--GUI ELEMENTS-->
+		<div id="loginOverlay">
+				<h2> Login </h2>
+				<hr/>
+				Username: <input type="text" id="login_username" />
+				<br/>
+				Password <input type="password" id="login_password" />
+				<br/><br/>
+				<div id="loginButton"><p><strong>Login</strong></p></div>
+				<div id="incorrect_error"><p><b>Error:</b> Incorrect username or password!</p></div>
+				<div id="empty_error"><p><b>Error:</b> Please enter both a username and password!</p></div>
+		</div>
+
+		<div id="lobbyOverlay">
+			<div id="buttonList">
+				<div class="lobby_button">NEW GAME</div>
+				<div class="lobby_button">STORE</div>
+				<div class="lobby_button">SETTING</div>
+			</div>
+			<div id="lobbyGameList">
+					<!--Automatically Generated items here -->
+			</div>
+		</div>
+
+
+		<canvas id="ctx" width="1000" height="1000" style="border: 1px solid #000000;"></canvas>
+		<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+		<script>
+
+
+			var canvas = document.getElementById('ctx');
+			var ctx = canvas.getContext('2d');
+			ctx.font = '30px Arial';
+
+			//UI
+			var loginOverlay;
+			var loginButton;
+
+			var lobbyOverlay;
+			var lobbyGameList;
+			document.addEventListener('DOMContentLoaded', function() {
+				//Initialize javascript variables when they load.
+				loginOverlay = document.getElementById('loginOverlay');
+				loginButton = document.getElementById('loginButton');
+
+				lobbyOverlay = document.getElementById('lobbyOverlay');
+				lobbyGameList = document.getElementById('lobbyGameList');
+
+				//Position Gui Elements
+				loginOverlay.style.left = "400px";
+				loginOverlay.style.top = "375px";
+
+				loginButton.addEventListener('click', loginClick, false);
+
+			});
+
+
+
+			var Wall = function(startpt, lengthX, lengthY, color, ownerId) {
+				var self = {
+					startpt: startpt,
+					lengthX: lengthX,
+					lengthY: lengthY,
+					color: color,
+					ownerId: ownerId
+				};
+				return self;
+			};
+
+			var Particle = function(x,y,vx,vy) {
+				var self = {
+					x: x,
+					y: y,
+					id: Math.random(),
+					vx: vx,
+					vy: vy
+				}
+				return self;
+			}
+			//anims
+			var preloggedAnim;
+			var loginAnim;
+			var gameAnim;
+
+			//Timing
+			var now;
+			var animTime = 0
+			var lastAnimSpawn = 0
+			var startTime = Date.now();
+			var dt;
+			var timerRandom = "undef";
+
+			var socket = io();
+			var localId = 0;
+			var localData;
+			var local_PLAYER_LIST = {};
+			var local_WALL_LIST = {};
+			var local_TEMP_WALL_LIST = {};
+			var local_PARTICLE_LIST = [];
+
+
+			socket.on('returnId', function(data) {
+				localId = data;
+				console.log(localId);
+			});
+
+			socket.on("newPositions", function(data) {
+				local_PLAYER_LIST = data.player_list;
+				local_WALL_LIST = data.wall_list;
+				local_TEMP_WALL_LIST = data.temp_wall_list;
+			});
+
+			socket.on("correctLogin", function(data) {
+					localData = data.rows;
+					canvas.style.backgroundColor = "white";
+					loginOverlay.style.display = "none";
+
+					//Display lobbyOverlay
+					lobbyOverlay.style.display = "block";
+
+					//cancelAnimationFrame(loginAnim);
+					//animate();
+			});
+
+			function loginClick() {
+				var username = document.getElementById('login_username').value;
+				var password = document.getElementById('login_password').value;
+
+				if(username == null || password == null) {
+					document.getElementById('empty_error').style.display = "block";
+					return;
+				}
+
+				socket.emit('loginAttempt', {username: username, password: password});
+				return;
+			}
+
+
+			function animate() {
+				if(local_PLAYER_LIST[localId]) {
+					//console.log("MADE HERE");
+					if(local_PLAYER_LIST[localId].logged) {
+						//console.log("ANDHERE");
+						ctx.clearRect(0,0,canvas.width,canvas.height);
+						for(var i in local_PLAYER_LIST){
+							var player = local_PLAYER_LIST[i];
+						//Draw player if not dead.
+							if(!player.dead) {
+								ctx.beginPath();
+								ctx.arc(player.x+2.5, player.y+2.5, player.size, 0, Math.PI*2);
+								ctx.fillStyle = player.color;
+								ctx.fill();
+								ctx.closePath();
+
+								//Send server your temporary line
+
+								/*
+								if(player.vx !== 0) {
+									var x = player.x - player.trnPt1[0];
+
+									var pseudoWall = new Wall(player.trnPt1, [player.x, player.y], player.color, player.id);
+									ctx.rect(player.trnPt1[0], player.trnPt1[1], x, 5);
+								} else if (player.vy !== 0) {
+									var y = player.y - player.trnPt1[1];
+									var pseudoWall = new Wall(player.trnPt1, [player.x, player.y], player.color, player.id);
+									ctx.rect(player.trnPt1[0], player.trnPt1[1], 5, y);
+								}
+								*/
+								//console.log("Player at: [ " + player.x + ", " + player.y + "]");
+
+
+								//socket.emit("updateTempArray", {wall: pseudoWall, id: player.id});
+
+
+								/*
+								for(var k in local_TEMP_WALL_LIST) {
+									var tempWall = local_TEMP_WALL_LIST[k];
+									var result = checkWallCollision(tempWall, player, "temp");
+									if(result) {
+										killPlayer(player);
+									}
+								}
+								*/
+							}
+						}
+
+						for(var i in local_WALL_LIST) {
+							let wall = local_WALL_LIST[i];
+							ctx.beginPath();
+							ctx.rect(wall.startpt[0], wall.startpt[1], wall.lengthX, wall.lengthY);
+							ctx.fillStyle = wall.color;
+							ctx.fill();
+							ctx.closePath();
+						}
+
+						for(var i in local_TEMP_WALL_LIST) {
+							var wall = local_TEMP_WALL_LIST[i];
+							console.log()
+							ctx.beginPath(wall.startpt[0] + " " + wall.startpt[1] + " " + wall.lengthX + " " + wall.lengthY);
+							ctx.rect(wall.startpt[0], wall.startpt[1], wall.lengthX, wall.lengthY);
+							ctx.fillStyle = wall.color;
+							ctx.fill();
+							ctx.closePath();
+						}
+
+						gameAnim = requestAnimationFrame(animate);
+						if(preloggedAnim) { cancelAnimationFrame(preloggedAnim); }
+					}
+				}
+					if(!gameAnim) {
+						preloggedAnim = requestAnimationFrame(animate);
+						console.log("here");
+					}
+
+			}
+
+			function animateLogin() {
+				now = Date.now();
+				gameTime = now - startTime;
+				dt = gameTime/1000;
+				//console.log("Dt: " + dt);
+				//Login background animation
+				ctx.fillStyle = 'rgba(0,0,0, .10)';
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				if(timerRandom == "undef") {
+					timerRandom = Math.random();
+					console.log("timer set");
+				}
+				if(dt-lastAnimSpawn > timerRandom) {
+					//Spawn a new particle.
+					var random = Math.floor(Math.random()*2) + 1;
+					if(random == 1) {
+						//Horizontal
+						var otherrandom = Math.floor(Math.random()*2) + 1;
+						if(otherrandom == 1) {
+							//From Left
+							var newParticle = new Particle(-10, Math.random()*canvas.height, 1, 0);
+						} else if(otherrandom == 2) {
+							//From Right
+							var newParticle = new Particle(canvas.width+10, Math.random()*canvas.height, -1, 0);
+						}
+					} else if(random == 2) {
+						var otherrandom = Math.floor(Math.random()*2) + 1;
+						if(otherrandom == 1) {
+							//From Above
+							var newParticle = new Particle(Math.random()*canvas.width, -10, 0, 1);
+						} else if(otherrandom == 2) {
+							//From Below
+							var newParticle = new Particle(Math.random()*canvas.width, canvas.height+10, 0, -1);
+						}
+					}
+					local_PARTICLE_LIST.push(newParticle);
+					console.log("new part");
+					timerRandom = Math.random();
+					lastAnimSpawn = dt;
+				}
+
+				for(var i in local_PARTICLE_LIST) {
+					var particle = local_PARTICLE_LIST[i];
+
+					particle.x += particle.vx * 4;
+					particle.y += particle.vy * 4;
+
+					if(particle.x < -11 || particle.x > canvas.width +11 || particle.y < -11 || particle.y > canvas.height + 11) {
+						local_PARTICLE_LIST.splice(i, 1);
+						continue;
+					}
+
+					ctx.beginPath();
+					ctx.fillStyle = "white";
+					ctx.moveTo(particle.x, particle.y);
+					ctx.arc(particle.x, particle.y, 2, 0, Math.PI*2);
+					ctx.fill();
+					ctx.closePath();
+
+
+				}
+				//console.log("here");
+				loginAnim = requestAnimationFrame(animateLogin);
+			}
+
+			function killPlayer(player) {
+				socket.emit('playerDied', player);
+			}
+			/*
+			document.onkeydown = function(event) {
+				if(event.keyCode == 68) { //d
+					socket.emit('keyPress',{inputId:'right', id: localId});
+				}
+				if(event.keyCode == 83) { //s
+					socket.emit('keyPress',{inputId:'down', id: localId});
+				}
+				if(event.keyCode == 65) {// a
+					socket.emit('keyPress',{inputId:'left', id: localId});
+				}
+				if(event.keyCode == 87) {//w
+					socket.emit('keyPress',{inputId:'up', id: localId});
+				}
+			};
+			*/
+			function checkDead() {
+				//console.log("Variable: " + local_PLAYER_LIST[localId].color);
+				return local_PLAYER_LIST[localId].dead;
+			}
+			document.onkeyup = function(event) {
+				//console.log(local_PLAYER_LIST[localId].dead);
+				if(!checkDead()) {
+					if(event.keyCode == 68) {//d
+						socket.emit('keyPress',{inputId:'right', id: localId});
+					}
+					if(event.keyCode == 83) { //s
+						socket.emit('keyPress',{inputId:'down', id: localId});
+					}
+					if(event.keyCode == 65) {// a
+						socket.emit('keyPress',{inputId:'left', id: localId});
+					}
+					if(event.keyCode == 87) {//w
+						socket.emit('keyPress',{inputId:'up', id: localId});
+					}
+				}
+			};
+
+			function collides(x, y, r, b, x2, y2, r2, b2) {
+		    return !(r <= x2 || x > r2 || b <= y2 || y > b2);
+			}
+			//Checks collisions for boxes only.
+			//pos = item x and y coordinates. eg [0, 0]
+			//size = item dimensions (size). eg [50, 50];
+			//pos2 = item 2 x and y coordinates.
+			//size2 = item 2 dimensions (size).
+			function boxCollides(pos, size, pos2, size2) {
+			    return collides(pos[0], pos[1], pos[0] + size[0], pos[1] + size[1], pos2[0], pos2[1], pos2[0] + size2[0], pos2[1] + size2[1]);
+			}
+
+
+			function AnimHandler() {
+				if(local_PLAYER_LIST[localId]) {
+					animateLogin();
+					clearInterval(interval);
+				}
+				return;
+			}
+
+			var interval = setInterval(AnimHandler, 100);
+
+		</script>
+	</body>
+</html>
