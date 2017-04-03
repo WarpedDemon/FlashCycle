@@ -1,0 +1,8 @@
+{
+  "name": "Flash Cycle.io",
+  "description: A Game",
+  "repository": https://github.com/WarpedDemon/FlashCycle",
+  "logo": "http://node-js-sample.herokuapp.com/node.svg",
+  "keywords": ["node", "express", "static"],
+  "image": "heroku/nodejs"
+}
